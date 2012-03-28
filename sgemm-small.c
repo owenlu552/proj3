@@ -4,18 +4,16 @@
 #include <emmintrin.h>
 #include <x86intrin.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <emmintrin.h>
+#include <x86intrin.h>
+
 void square_sgemm( int n, float *A, float *B, float *C ) {
   int f, g, h, i, j , k, l;
   int blockI = 64, blockJ = 64, blockK = 64;
-//  if (n < 300) {
-//      blockI = 64;
-//      blockJ = 64;
-//      blockK = 256;
-//  } else {
-//      blockI = 16;
-//      blockJ = 16;
-//      blockK = 256;
-//  }
+
   float temp, temp1, temp2, temp3, temp4;
   __m128 x;
   __m128 y;
@@ -117,220 +115,36 @@ void square_sgemm( int n, float *A, float *B, float *C ) {
                     }
               }
           }
-					//k cleanup
-					if (k < n) {
-						for(i = g; i < g + blockI; i ++) {
-							for (j = h; j < h + blockJ; j++) {
-								cij = C[i+j*n];
-								for (k = f; k < n; k++) {
-									cij += At[k+i*n] * B[k+j*n];
-								}
-								C[i+j*n] = cij;
-							}
-						}
-					}	
       }
-			// j cleanup
-			for (; j < n; j++) {
-				c1 = _mm_loadu_ps(C+i+j*n);
-				partialSum = _mm_setzero_ps();
-				partialSum1 = _mm_setzero_ps();
-				partialSum2 = _mm_setzero_ps();
-				partialSum3 = _mm_setzero_ps();
-				for (k = 0; k < n/4*4; k+=4) {
-					x = _mm_loadu_ps(At + k + i*n);
-					y = _mm_loadu_ps(B + k + j*n);
-					a = _mm_mul_ps(x, y);
-					partialSum = _mm_add_ps(partialSum, a);
-
-					x = _mm_loadu_ps(At + k + (i+1)*n);
-					a = _mm_mul_ps(x, y);
-					partialSum1 = _mm_add_ps(partialSum1, a);
-
-					x = _mm_loadu_ps(At + k + (i+2)*n);
-					a = _mm_mul_ps(x, y);
-					partialSum2 = _mm_add_ps(partialSum2, a);
-
-					x = _mm_loadu_ps(At + k + (i+3)*n);
-					a = _mm_mul_ps(x, y);
-					partialSum3 = _mm_add_ps(partialSum3, a);
-				}
-				partialSum = _mm_hadd_ps(partialSum, partialSum1);
-				partialSum2 = _mm_hadd_ps(partialSum2, partialSum3);
-				c1 = _mm_add_ps(_mm_hadd_ps(partialSum, partialSum2), c1);
-				temp1 = 0.0;
-				temp2 = 0.0;
-				temp3 = 0.0;
-				temp4 = 0.0;
-				for (; k < n; k++) {
-					temp1 += At[k+i*n] * B[k+j*n];
-					temp2 += At[k+(i+1)*n] * B[k+j*n];
-					temp3 += At[k+(i+2)*n] * B[k+j*n];
-					temp4 += At[k+(i+3)*n] * B[k+j*n];
-				}
-				d = _mm_set_ps(temp4, temp3, temp2, temp1);
-				c1 = _mm_add_ps(c1, d);
-				_mm_storeu_ps(C+i+j*n, c1);	    
-			}
 	}
 	
-	// i cleanup
-	for (;i < n; ++i) {
-    // For each column j of B 
-    for (j = 0; j < n/8*8; j+=8)
-    {
-      // Compute C(i,j)
-
-			cij = C[i+j*n];
-			cij1 = C[i+(j+1)*n];
-			cij2 = C[i+(j+2)*n];
-			cij3 = C[i+(j+3)*n];
-			cij4 = C[i+(j+4)*n];
-			cij5 = C[i+(j+5)*n];
-			cij6 = C[i+(j+6)*n];
-			cij7 = C[i+(j+7)*n];
-
-
-			//this will hold 4 floats which sum to the dot product
-			partialSum = _mm_setzero_ps();
-			partialSum1 = _mm_setzero_ps();
-			partialSum2 = _mm_setzero_ps();
-			partialSum3 = _mm_setzero_ps();
-			partialSum4 = _mm_setzero_ps();
-			partialSum5 = _mm_setzero_ps();
-			partialSum6 = _mm_setzero_ps();
-			partialSum7 = _mm_setzero_ps();
-
-      for(k = 0; k < n/4*4; k += 4) {
-				x = _mm_loadu_ps(At + k + i*n);
-				y = _mm_loadu_ps(B + k + j*n);
-				d = _mm_mul_ps(x, y);
-				//accumulate dot prduct
-				y = _mm_loadu_ps(B + k + (j+1) *n);
-				a = _mm_mul_ps(x, y);
-				partialSum = _mm_add_ps(partialSum, d);
-
-				//accumulate dot prduct
-				y = _mm_loadu_ps(B + k + (j+2)*n);
-				d = _mm_mul_ps(x, y);
-				partialSum1 = _mm_add_ps(partialSum1, a);
-
-				//accumulate dot prduct
-				y = _mm_loadu_ps(B + k + (j+3)*n);
-				a = _mm_mul_ps(x, y);
-				partialSum2 = _mm_add_ps(partialSum2, d);
-
-				//accumulate dot prduct
-				y = _mm_loadu_ps(B + k + (j+4)*n);
-				d = _mm_mul_ps(x, y);
-				partialSum3 = _mm_add_ps(partialSum3, a);
-
-				//accumulate dot prduct
-				y = _mm_loadu_ps(B + k + (j+5) *n);
-				a = _mm_mul_ps(x, y);
-				partialSum4 = _mm_add_ps(partialSum4, d);
-
-				//accumulate dot prduct
-				y = _mm_loadu_ps(B + k + (j+6)*n);
-				d = _mm_mul_ps(x, y);
-				partialSum5 = _mm_add_ps(partialSum5, a);
-
-				//accumulate dot prduct
-				y = _mm_loadu_ps(B + k + (j+7)*n);
-				a = _mm_mul_ps(x, y);
-				partialSum6 = _mm_add_ps(partialSum6, d);
-
-				//accumulate dot prduct
-				partialSum7 = _mm_add_ps(partialSum7, a);
-
-      }
-
-			partialSum = _mm_hadd_ps(partialSum, partialSum1);
-			partialSum1 = _mm_hadd_ps(partialSum2, partialSum3);
-			partialSum2 = _mm_hadd_ps(partialSum, partialSum1); // [p0,p1,p2,p3] where p1 = accumulation of partialSum1
-
-			partialSum4 = _mm_hadd_ps(partialSum4, partialSum5);
-			partialSum5 = _mm_hadd_ps(partialSum6, partialSum7);
-			partialSum6 = _mm_hadd_ps(partialSum4, partialSum5); // [p4,p5,p6,p7]
-
-      _MM_EXTRACT_FLOAT(temp, partialSum2, 0);
-      cij += temp;
-      _MM_EXTRACT_FLOAT(temp, partialSum2, 1);
-      cij1 += temp;
-      _MM_EXTRACT_FLOAT(temp, partialSum2, 2);
-      cij2 += temp;
-      _MM_EXTRACT_FLOAT(temp, partialSum2, 3);
-      cij3 += temp;
-      _MM_EXTRACT_FLOAT(temp, partialSum6, 0);
-      cij4 += temp;
-      _MM_EXTRACT_FLOAT(temp, partialSum6, 1);
-      cij5 += temp;
-      _MM_EXTRACT_FLOAT(temp, partialSum6, 2);
-      cij6 += temp;
-      _MM_EXTRACT_FLOAT(temp, partialSum6, 3);
-      cij7 += temp;
-      
-			//cleanup k
-			for (; k < n; k ++) {
-			    cij += At[k+i*n] * B[k+j*n];
-			    cij1 += At[k+i*n] * B[k+(j+1)*n];
-			    cij2 += At[k+i*n] * B[k+(j+2)*n];
-			    cij3 += At[k+i*n] * B[k+(j+3)*n];
-			    cij4 += At[k+i*n] * B[k+(j+4)*n];
-			    cij5 += At[k+i*n] * B[k+(j+5)*n];
-			    cij6 += At[k+i*n] * B[k+(j+6)*n];
-			    cij7 += At[k+i*n] * B[k+(j+7)*n];
-			}
-			C[i+j*n] = cij;
-			C[i+(j+1)*n] = cij1;
-			C[i+(j+2)*n] = cij2;
-			C[i+(j+3)*n] = cij3;
-			C[i+(j+4)*n] = cij4;
-			C[i+(j+5)*n] = cij5;
-			C[i+(j+6)*n] = cij6;
-			C[i+(j+7)*n] = cij7;
-    }
-		//cleanup j
-    for (; j < n; j++) {
-			cij = C[i+j*n];
-			partialSum = _mm_setzero_ps();
-			for (k = 0; k < n/4*4; k+=4) {
-					x = _mm_loadu_ps(At + k + i*n);
-					y = _mm_loadu_ps(B + k + j*n);
-					d = _mm_mul_ps(x, y);
-					//accumulate dot prduct
-					partialSum = _mm_add_ps(partialSum, d);
-			}
-			partialSum = _mm_hadd_ps(partialSum,partialSum);
-			_MM_EXTRACT_FLOAT(temp, partialSum, 0);
-			cij += temp;
-			_MM_EXTRACT_FLOAT(temp, partialSum, 1);
-			cij += temp;
-			for (; k < n; k++) {
-					cij += At[k+i*n] * B[k+j*n];
-			}
-			C[i+j*n] = cij;
-		}
-	}
-	/*
-	for (i = 0; i < g; i++) {
-		for (j = 0; j < h; j++) {
-			cij = C[i+j*n];
-      for (k = f; k < n; k++) {
-				cij += At[k+i*n] * B[k+j*n];
-			}
-      C[i+j*n] = cij;
-		}
-	}
-	for (; i < n; i++) {
-		for (; j < n; j++) {
+	//everything cleanup
+	for (i = 0; i < n; i++) {
+		for (j = 0; j < n; j++) {
 			cij = C[i + j*n];
-			for (k = 0; k < n; k++) {
-				cij += At[k+i*n] * B[k+j*n];
+			for (k = f; k < n; k++) {
+				cij += At[k + i*n] * B[k + j*n];
 			}
-			C[i+j*n] = cij;
+			C[i + j*n] = cij;
 		}
 	}
-	*/
+	for (i = 0; i < g; i++) {
+		for (j = h; j < n; j++) {
+			cij = C[i + j*n];
+			for (k = 0; k < f; k++) {
+				cij += At[k + i*n] * B[k + j*n];
+			}
+			C[i + j*n] = cij;
+		}
+	}
+	for (i = g; i < n; i++) {
+		for (j = 0; j < n; j++) {
+			cij = C[i + j*n];
+			for (k = 0; k < f; k++) {
+				cij += At[k + i*n] * B[k + j*n];
+			}
+			C[i + j*n] = cij;
+		}
+	}
   free(At);
 }
