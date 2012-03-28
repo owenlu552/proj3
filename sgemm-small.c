@@ -11,10 +11,17 @@
 #include <x86intrin.h>
 
 void square_sgemm( int n, float *A, float *B, float *C ) {
-  int f, g, h, i, j , k, l;
-  int blockI = 64, blockJ = 64, blockK = 64;
-
-  float temp, temp1, temp2, temp3, temp4;
+  int f, g, h, i, j , k, l, blockI, blockJ, blockK, p;
+	//choose a blocksize that minimizes edge cleanup and is 
+	//	divisible by 4, and is between 64 and 128
+	p = (n / 64);
+	if (p > 0) {
+		blockI = blockJ = blockK = (n / p)/4*4;
+	} else {
+		blockI = blockJ = blockK = n/4*4;
+	}
+	//blockI = blockJ = blockK = 64;
+  float temp;
   __m128 x;
   __m128 y;
   __m128 a;
@@ -29,7 +36,7 @@ void square_sgemm( int n, float *A, float *B, float *C ) {
   __m128 partialSum5;
   __m128 partialSum6;
   __m128 partialSum7;
-  float cij=0.0, cij1=0.0, cij2=0.0, cij3=0.0, cij4=0.0, cij5=0.0, cij6=0.0, cij7=0.0;
+  float cij=0.0;
   __m128 c1;
   __m128 c2;
   float *At = malloc(n*n*sizeof(float));
@@ -115,39 +122,37 @@ void square_sgemm( int n, float *A, float *B, float *C ) {
                     }
               }
           }
+					// nested k-cleanup
+					for (i = g; i < g + blockI; i++) {
+						for (j = h; j < h + blockJ; j++) {
+							cij = C[i + j*n];
+							for (k = f; k < n; k++) {
+								cij += At[k + i*n] * B[k + j*n];
+							}
+							C[i + j*n] = cij;
+						}
+					}
       }
+			// nested j-cleanup
+			for (i = g; i < g + blockI; i++) {
+				for (j = h; j < n; j++) {
+					cij = C[i + j*n];
+					for (k = 0; k < n; k++) {
+						cij += At[k + i*n] * B[k + j*n];
+					}
+					C[i + j*n] = cij;
+				}
+			}
 	}
-	
-	//everything cleanup
-	if (g != n) {
-		//printf("cleanup");
-		for (i = 0; i < n; i++) {
+	// nested i-cleanup
+	for (i = g; i < n; i++) {
 			for (j = 0; j < n; j++) {
 				cij = C[i + j*n];
-				for (k = f; k < n; k++) {
+				for (k = 0; k < n; k++) {
 					cij += At[k + i*n] * B[k + j*n];
 				}
 				C[i + j*n] = cij;
 			}
-		}
-		for (i = 0; i < g; i++) {
-			for (j = h; j < n; j++) {
-				cij = C[i + j*n];
-				for (k = 0; k < f; k++) {
-					cij += At[k + i*n] * B[k + j*n];
-				}
-				C[i + j*n] = cij;
-			}
-		}
-		for (i = g; i < n; i++) {
-			for (j = 0; j < n; j++) {
-				cij = C[i + j*n];
-				for (k = 0; k < f; k++) {
-					cij += At[k + i*n] * B[k + j*n];
-				}
-				C[i + j*n] = cij;
-			}
-		}
 	}
   free(At);
 }
